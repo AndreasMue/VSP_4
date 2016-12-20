@@ -8,31 +8,57 @@
  *
  * @Date:    17.12.2016
  */
-package Station;
+package station;
+
+import java.util.Arrays;
 
 public class SlotController {
-	private boolean slots[];
+	private int lastSlots[];
+	public int currentSlots[];
 	
 	public SlotController(int slotCount){
-		slots = new boolean[slotCount];
-		for(boolean slot : slots) {
-			slot = true;
+		lastSlots = new int[slotCount];
+		currentSlots = new int[slotCount];
+		
+		
+		for(int i = 0; i < lastSlots.length; i++) {
+			lastSlots[i] = 0;
+		}
+		
+		for(int i = 0; i < currentSlots.length; i++) {
+			currentSlots[i] = 0;
 		}
 	}
 	
 	public int getFreeSlot(){
-		for(int i = 0; i < slots.length; i++) {
-			if(slots[i]) return i;
+		for(int i = 0; i < lastSlots.length; i++) {
+			if(lastSlots[i] == 0 && currentSlots[i] == 0) return i;
+		}
+		
+		for(int i = 0; i < lastSlots.length; i++) {
+			if(lastSlots[i] == 0) return i;
 		}
 		
 		return -1;
 	}
 	
 	public void freeSlot(int slot){
-		slots[slot] = true;
+		currentSlots[slot] = 0;
 	}
 	
 	public void occupySlot(int slot){
-		slots[slot] = false;
+		currentSlots[slot]++;
+	}
+	
+	public boolean hasSlotCollision(int slotId) {
+		return lastSlots[slotId] > 1 || currentSlots[slotId] > 1 ? true : false;
+	}
+	
+	public void nextFrame() {
+		lastSlots = Arrays.copyOf(currentSlots, currentSlots.length);
+		
+		for(int i = 0; i < currentSlots.length; i++) {
+			currentSlots[i] = 0;
+		}
 	}
 }
