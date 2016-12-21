@@ -8,7 +8,7 @@
  *
  * @Date:    20.12.2016
  */
-package station;
+package Station;
 
 abstract public class StationBase extends Thread {
 	

@@ -8,7 +8,7 @@
  *
  * @Date:    17.12.2016
  */
-package station;
+package Station;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+
+import Entrypoint.Entrypoint;
 
 
 public class StationController extends Thread {
@@ -32,17 +34,28 @@ public class StationController extends Thread {
 	
 	/* The last is also the current active one */
 	private long lastFrameID = 0;
+	private int lastSlotId = 0;
 	
 	/* Streams and bytearray to read data from datasource */
 	private BufferedInputStream bis = new BufferedInputStream(System.in);
 	private DataInputStream dis = new DataInputStream(bis);
 	private byte[] data = new byte[Message.DATALENGTH];
 	
+	private int classAMsg;
+	
+	private long concOffset = 0;
+	private long concOffsetClassB = 0;
+	
+	private long frameOffset = 0;
+	
+	private long offset = 0;
+	private long offsetClassB = 0;
+	
 	public StationController() {
 		slotCtrl = new SlotController(25);
 		
 		receiver = new Receiver(this);
-		transmitter = new TransmitterClassA(slotCtrl);
+		transmitter = new TransmitterClassA(slotCtrl, this);
 		
 		transmitter.setPriority(Thread.MAX_PRIORITY);
 		
@@ -79,7 +92,15 @@ public class StationController extends Thread {
 				handleMessage(msg);
 			} 
 			
+			if(lastSlotId < (getCurrentTimeMillis() % 1000)/40 ) {
+				
+				lastSlotId = (int)(getCurrentTimeMillis() % 1000)/40;
+				slotCtrl.freeSlot(lastSlotId);
+			}
+			
 			if(currentFrameId() > lastFrameID) {
+				calcFrameOffset();
+				calcOffsetClassB();
 				showFrameInfo();
 				lastFrameID = currentFrameId();
 				slotCtrl.nextFrame();
@@ -89,12 +110,12 @@ public class StationController extends Thread {
 						
 						/* Enough data available */
 						dis.readFully(data, 0, Message.DATALENGTH);
-						transmitter.setMessage(new Message('A', data, -1, null));
+						transmitter.setMessage(new Message(Entrypoint.stationClass, data, -1, null));
 						transmitter.gotData = true;
 					} else {
 						
 						/* Not enough data available */
-						System.out.println("Warning: No new Data available! Sending old Data.");
+						// System.out.println("Warning: No new Data available! Sending old Data.");
 					}
 				} catch (IOException e) {
 					System.out.println("ERROR: Reading data from System.in.");
@@ -130,12 +151,38 @@ public class StationController extends Thread {
 		}
 	}
 	
+	public long getCurrentTimeMillis() {
+		return System.currentTimeMillis() + offset + offsetClassB;
+	}
+	
+	public void setOffset(long millis) {
+		this.offset = millis;
+	}
+	
+	public void calcFrameOffset() {
+		
+		/* Possible 0 Class A Messages */
+		if(classAMsg == 0) return;
+		
+		frameOffset = (long)concOffset / classAMsg;
+		concOffset = 0;
+	}
+	
+	public void calcOffsetClassB() {
+		
+		/* Possible 0 Class A Messages */
+		if(classAMsg == 0) return;
+		
+		offsetClassB = (long)concOffsetClassB / classAMsg;
+		concOffsetClassB = 0;
+	}
+	
 	private void showFrameInfo() {
-		System.out.println("### FRAME: " + lastFrameID + " ##########");
-		for(int i = 0; i < 25; i++) {
-			if(i < 10) System.out.print("0" + i + "|"); else System.out.print(i + "|");		
-		}
-		System.out.print('\n');
+		//System.out.println("### FRAME: " + lastFrameID + " OFFSET: " + offset + "ms + " + frameOffset + "ms ##########");
+		//for(int i = 0; i < 25; i++) {
+			//if(i < 10) //System.out.print("0" + i + "|"); else System.out.print(i + "|");		
+		//}
+		//System.out.print('\n');
 		
 		for(int i = 0; i < 25; i++) {
 			int cnt = slotCtrl.currentSlots[i];
@@ -143,45 +190,48 @@ public class StationController extends Thread {
 			if(cnt == 0) {
 				
 				/* Noone sends on the Slot */
-				System.out.print(" O|");
+				//System.out.print(" O|");
 			} else if(cnt == 1) {
 				
 				/* Someone sends on the Slot */
-				System.out.print(" X|");
+				//System.out.print(" X|");
 			} else if(cnt > 1) {
 				
 				/* Collision on the Slot */
-				System.out.print("##|");
+				//System.out.print("##|");
 			} 
 		}
 		
-		System.out.print("\n\n");
+		//System.out.print("\n\n");
 	}
 	
 	private long currentFrameId() {
-		return (long)System.currentTimeMillis() / 1000;
+		return (long)getCurrentTimeMillis() / 1000;
 	}
 	
 	private void handleMessage(Message msg) {
 		byte[] msgData = msg.getMessage();
 		
+		/* RAW data *byte* */
 		byte   stationClass_raw = msgData[0];
 		byte[] usedata_raw      = Arrays.copyOfRange(msgData, 1, Message.DATALENGTH + 1);
 		byte   slotid_raw       = msgData[25];
 		byte[] millitime_raw    = Arrays.copyOfRange(msgData, 26, 34);
 		
+		/* Converted Data part 1 */
 		char stationClass = (char) stationClass_raw;
 		String useData = new String(usedata_raw, Charset.forName("UTF-8"));
 		int slotid = Integer.valueOf(slotid_raw);
 		
+		/* Converted Data part 2 *ugly...* */
 		ByteBuffer bybuf = ByteBuffer.allocate(Long.BYTES);
 		bybuf.put(millitime_raw, 0, millitime_raw.length);
 		bybuf.position(0);
 		long milliTime = bybuf.getLong();
 		
-		if(true) {
+		if(false) {
 			
-			/* Dump Message */
+			/* Dump Message Disable this wenn running multiple! */
 			System.out.println("MSG: [ " 
 								+ stationClass + " | " 
 								+ useData +      " | "
@@ -193,11 +243,26 @@ public class StationController extends Thread {
 		if(milliTime / 1000 < lastFrameID) {
 			
 			/* Timestamp in Massage is too old */
-			System.out.println("Receivec old Package.");
+			// System.out.println("Receivec old Package.");
 		} else {
 			
 			/* Message was valid, update Slottable */
 			slotCtrl.occupySlot(slotid);
+			
+			if(stationClass == 'A') {
+		
+				/* Set offsets */
+				long msgoff = getCurrentTimeMillis() - milliTime;
+				concOffset += msgoff;
+				
+				if(Entrypoint.stationClass == 'B') {
+					
+					/* Add Offset for Class B */
+					concOffsetClassB += msgoff;
+				}
+				
+				classAMsg++;
+			}
 		}
 	} 
 }

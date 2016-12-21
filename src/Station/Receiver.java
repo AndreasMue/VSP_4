@@ -8,12 +8,15 @@
  *
  * @Date:    20.12.2016
  */
-package station;
+package Station;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
+import java.net.NetworkInterface;
+import java.security.KeyStore.Entry;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import Entrypoint.Entrypoint;
@@ -37,14 +40,15 @@ public class Receiver extends Thread {
 
 	private void init() {
 		try {
+			NetworkInterface nic = NetworkInterface.getByName(Entrypoint.baseInterfaceName);
 			InetAddress group = InetAddress.getByName(Entrypoint.baseAddress);
+			InetSocketAddress socAdr = new InetSocketAddress(group, Entrypoint.baseport);
+			
 			skt = new MulticastSocket(Entrypoint.baseport);
 			
-			/* Join our group to receive packages */
-			skt.joinGroup(group);
-			
-			/* Not needed to set TTL here, but it's good practice to always set it */
-			skt.setTimeToLive(0); 
+			skt.joinGroup(socAdr, nic);
+			skt.setTimeToLive(1);
+			skt.setLoopbackMode(false);
 			
 			skt.setLoopbackMode(false);
 		} catch (IOException e) {

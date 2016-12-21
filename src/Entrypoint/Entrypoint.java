@@ -14,7 +14,7 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.Enumeration;
 
-import station.StationController;
+import Station.StationController;
 
 public class Entrypoint {
 	
@@ -22,9 +22,11 @@ public class Entrypoint {
 	public static int baseport = 15010;
 	public static String baseInterfaceName = "";
 	public static int baseStationnumber = -1;
+	public static char stationClass = 'A';
+	public static long offset = 0;
 	
 	public static void main(String[] args) throws SocketException {
-		// Args in Order: IP, Port, Interface, StationID
+		// Args in Order: IP, Port, Interface, StationID, StationClass, Offset
 		
 		String address;
 		int port;
@@ -58,11 +60,19 @@ public class Entrypoint {
 			}
 		}
 		
-		if(args.length == 4) {
+		if(args.length >= 4) {
 			stationnumber = Integer.valueOf(args[3]);
 			baseStationnumber = Integer.valueOf(args[3]);
 		} else {
 			stationnumber = -1;
+		}
+		
+		if(args.length >= 5) {
+			stationClass = (char)args[4].charAt(0);
+		}
+		
+		if(args.length == 6) {
+			offset = Long.valueOf(args[5]);
 		}
 		
 		System.out.println("### Starting Station ###");
@@ -70,6 +80,8 @@ public class Entrypoint {
 		System.out.println("# ADDR: " + address);
 		System.out.println("# INTF: " + interfaceName);
 		System.out.println("# STNR: " + stationnumber);
+		System.out.println("# CLSS: " + stationClass);
+		System.out.println("# OFST: " + offset);
 		System.out.println("########################");
 		
 		StationController stCtr = new StationController();

@@ -8,12 +8,14 @@
  *
  * @Date:    17.12.2016
  */
-package station;
+package Station;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
+import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 
@@ -59,11 +61,14 @@ public class TransmitterClassA extends StationBase{
 	public boolean gotData = false;
 	
 	private SlotController sc;
+	private StationController statCtrl;
 	
 	public boolean running = true;
 	
-	public TransmitterClassA(SlotController sc) {
+	public TransmitterClassA(SlotController sc, StationController statCtrl) {
 		this.sc = sc;
+		this.statCtrl = statCtrl;
+		
 		slotlength = FRAMELENGTH / SLOTCOUNT;
 		timeUntilSend = slotlength >> 1;
 		
@@ -78,15 +83,20 @@ public class TransmitterClassA extends StationBase{
 	
 	private void init() {
 		try {
-			InetAddress group = InetAddress.getByName(Entrypoint.baseAddress);
+			
 			
 			buffer = new byte[Message.MESSAGELENGTH];
 			
+			NetworkInterface nic = NetworkInterface.getByName(Entrypoint.baseInterfaceName);
+			InetAddress group = InetAddress.getByName(Entrypoint.baseAddress);
+			InetSocketAddress socAdr = new InetSocketAddress(group, Entrypoint.baseport);
+			
 			skt = new MulticastSocket(Entrypoint.baseport);
 			
-			skt.joinGroup(group);
+			skt.joinGroup(socAdr, nic);
 			skt.setTimeToLive(1);
 			skt.setLoopbackMode(false);
+			skt.setNetworkInterface(nic);
 			
 		} catch (IOException e) {
 			System.out.println("ERROR: Creating MultiCastSocket");
@@ -128,7 +138,7 @@ public class TransmitterClassA extends StationBase{
 	private long nextSend() throws InterruptedException {
 		if(!gotData) return 1000L;
 		
-		long startCheck = System.currentTimeMillis();
+		long startCheck = statCtrl.getCurrentTimeMillis();
 		long endCheck;
 		long timeLeft;
 		
@@ -138,41 +148,45 @@ public class TransmitterClassA extends StationBase{
 			slotNr = randomGetSlot();
 			currentSlot = getCurrentSlot();
 			return timeUntilNextSlot();
-		} else if(slotstate == SLOTSTATE.RANDOMTAKEN && sc.hasSlotCollision(slotNr)) {
-			
-			/* Got a collision after try slot take */
-			// System.out.println("RANDOMTAKEN | Co");
-			slotNr = randomGetSlot();
-			currentSlot = getCurrentSlot();
-			return timeUntilNextSlot();
-		} else if(slotstate == SLOTSTATE.RANDOMTAKEN && !sc.hasSlotCollision(slotNr)) {
-			
-			/* No collision after try slot take */
-			// System.out.println("RANDOMTAKEN | NoCo");
-			slotstate = SLOTSTATE.RANDOMTAKENSEND;
-		} else if(slotstate == SLOTSTATE.RANDOMTAKENSEND && !sc.hasSlotCollision(slotNr)) {
-			
-			/* No collision after try send on slot */
-			// System.out.println("RANDOMTAKENSEND | NoCo");
-			takeSlot();
-		} else if(slotstate == SLOTSTATE.RANDOMTAKENSEND && sc.hasSlotCollision(slotNr)) {
-			
-			/* Got a collision after try send on slot */
-			// System.out.println("RANDOMTAKENSEND | Co");
-			slotNr = randomGetSlot();
-			currentSlot = getCurrentSlot();
-			return timeUntilNextSlot();
-		} else if(slotstate == SLOTSTATE.TAKEN) {
-			
-			/* My Slot */
-			/* Happy */
-		}
+		} //else if(slotstate == SLOTSTATE.RANDOMTAKEN && sc.hasSlotCollision(slotNr)) {
+//			
+//			/* Got a collision after try slot take */
+//			// System.out.println("RANDOMTAKEN | Co");
+//			slotNr = randomGetSlot();
+//			currentSlot = getCurrentSlot();
+//			return timeUntilNextSlot();
+//		} else if(slotstate == SLOTSTATE.RANDOMTAKEN && !sc.hasSlotCollision(slotNr)) {
+//			
+//			/* No collision after try slot take */
+//			// System.out.println("RANDOMTAKEN | NoCo");
+//			slotstate = SLOTSTATE.RANDOMTAKENSEND;
+//		} else if(slotstate == SLOTSTATE.RANDOMTAKENSEND && !sc.hasSlotCollision(slotNr)) {
+//			
+//			/* No collision after try send on slot */
+//			// System.out.println("RANDOMTAKENSEND | NoCo");
+//			takeSlot();
+//		} else if(slotstate == SLOTSTATE.RANDOMTAKENSEND && sc.hasSlotCollision(slotNr)) {
+//			
+//			/* Got a collision after try send on slot */
+//			// System.out.println("RANDOMTAKENSEND | Co");
+//			slotNr = randomGetSlot();
+//			currentSlot = getCurrentSlot();
+//			return timeUntilNextSlot();
+//		} else if(slotstate == SLOTSTATE.TAKEN) {
+//			
+//			/* My Slot */
+//			/* Happy */
+//			
+//		}
 		
-		endCheck = System.currentTimeMillis();
+		
+		endCheck = statCtrl.getCurrentTimeMillis();
 		timeLeft = timeUntilSend - (endCheck - startCheck);
 		
 		/* wait until mid slot */
 		sleep(timeLeft);
+		
+		slotNr = randomGetSlot();
 		
 		System.arraycopy(msg.getMessageNow(slotNr), 0, buffer, 0, Message.MESSAGELENGTH);
 		DatagramPacket pkt = new DatagramPacket(buffer, buffer.length, to, Entrypoint.baseport);
@@ -188,15 +202,15 @@ public class TransmitterClassA extends StationBase{
 		if(slotstate == SLOTSTATE.TAKEN) {
 			
 			/* We got our slot, wait for next slot in next frame */
-			return (FRAMELENGTH - (System.currentTimeMillis() % FRAMELENGTH)) + (slotNr * slotlength);
+			return (FRAMELENGTH - (statCtrl.getCurrentTimeMillis() % FRAMELENGTH)) + (slotNr * slotlength);
 		} else if(AGGRESIVE){
 			
 			/* We got no save slot, check back in next slot */
-			return slotlength - (System.currentTimeMillis() - startCheck);
+			return slotlength - (statCtrl.getCurrentTimeMillis() - startCheck);
 		} else {
 			
 			/* We got no slot, wait for next Frame */
-			return (FRAMELENGTH - (System.currentTimeMillis() % FRAMELENGTH));
+			return (FRAMELENGTH - (statCtrl.getCurrentTimeMillis() % FRAMELENGTH)) + ((slotNr - 1) * slotlength);
 		}
 	}
 	
@@ -209,12 +223,12 @@ public class TransmitterClassA extends StationBase{
 			
 			/* Slot in next Frame */
 			int slotstowait = (SLOTCOUNT + slotNr) - currentSlot;
-			return (slotstowait * slotlength) - ((System.currentTimeMillis() % 1000) % 40);
+			return (slotstowait * slotlength) - ((statCtrl.getCurrentTimeMillis() % 1000) % 40);
 		} else if(currentSlot < slotNr) {
 			
 			/* Slot in current Frame */
 			int slotstowait = slotNr - currentSlot;
-			return (slotstowait * slotlength) - ((System.currentTimeMillis() % 1000) % 40);
+			return (slotstowait * slotlength) - ((statCtrl.getCurrentTimeMillis() % 1000) % 40);
 		} else if(currentSlot == slotNr) {
 			
 			/* Slot is current Slot */
@@ -238,7 +252,7 @@ public class TransmitterClassA extends StationBase{
 	private int getCurrentSlot(){
 		
 		/* Calculate the current slot based on time */
-		int currentSlot = (int)(System.currentTimeMillis() % FRAMELENGTH) / slotlength;
+		int currentSlot = (int)(statCtrl.getCurrentTimeMillis() % FRAMELENGTH) / slotlength;
 		return currentSlot;
 	}
 	
