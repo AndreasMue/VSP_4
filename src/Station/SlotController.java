@@ -48,7 +48,7 @@ public class SlotController {
 	
 	public int getFreeSlot(){
 		Random rnd = new Random();
-		int num = rnd.nextInt(freeSlots);
+		int num = freeSlots > 0 ? rnd.nextInt(freeSlots) : 0;
 		int idx = 0;
 		
 		for(int i = 0; i < lastSlots.length; i++) {

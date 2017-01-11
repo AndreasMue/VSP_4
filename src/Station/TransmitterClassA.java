@@ -188,7 +188,7 @@ public class TransmitterClassA extends StationBase{
 		
 		slotNr = randomGetSlot();
 		
-		System.arraycopy(msg.getMessageNow(slotNr), 0, buffer, 0, Message.MESSAGELENGTH);
+		System.arraycopy(msg.getMessageNow(slotNr, statCtrl.getCurrentTimeMillis()), 0, buffer, 0, Message.MESSAGELENGTH);
 		DatagramPacket pkt = new DatagramPacket(buffer, buffer.length, to, Entrypoint.baseport);
 		try {
 			skt.send(pkt);

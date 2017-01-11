@@ -46,6 +46,7 @@ public class StationController extends Thread {
 	private long concOffset = 0;
 	private long concOffsetClassB = 0;
 	
+	private long newFrameOffset = 0;
 	private long frameOffset = 0;
 	
 	private long offset = 0;
@@ -99,8 +100,12 @@ public class StationController extends Thread {
 			}
 			
 			if(currentFrameId() > lastFrameID) {
-				calcFrameOffset();
-				calcOffsetClassB();
+				if(Entrypoint.stationClass == 'A')
+					calcFrameOffset();
+				
+				if(Entrypoint.stationClass == 'B')
+					calcOffsetClassB();
+				
 				showFrameInfo();
 				lastFrameID = currentFrameId();
 				slotCtrl.nextFrame();
@@ -152,7 +157,7 @@ public class StationController extends Thread {
 	}
 	
 	public long getCurrentTimeMillis() {
-		return System.currentTimeMillis() + offset + offsetClassB;
+		return (System.currentTimeMillis() + offset) - frameOffset;
 	}
 	
 	public void setOffset(long millis) {
@@ -164,8 +169,9 @@ public class StationController extends Thread {
 		/* Possible 0 Class A Messages */
 		if(classAMsg == 0) return;
 		
-		frameOffset = (long)concOffset / classAMsg;
+		frameOffset += (long)(concOffset / classAMsg);
 		concOffset = 0;
+		classAMsg = 0;
 	}
 	
 	public void calcOffsetClassB() {
@@ -173,8 +179,9 @@ public class StationController extends Thread {
 		/* Possible 0 Class A Messages */
 		if(classAMsg == 0) return;
 		
-		offsetClassB = (long)concOffsetClassB / classAMsg;
+		frameOffset += (long)concOffsetClassB / classAMsg;
 		concOffsetClassB = 0;
+		classAMsg = 0;
 	}
 	
 	private void showFrameInfo() {
@@ -250,16 +257,21 @@ public class StationController extends Thread {
 			slotCtrl.occupySlot(slotid);
 			
 			if(stationClass == 'A') {
-		
-				/* Set offsets */
 				long msgoff = getCurrentTimeMillis() - milliTime;
-				concOffset += msgoff;
 				
-				if(Entrypoint.stationClass == 'B') {
+				if( transmitter.slotNr != slotid ) {
+					/* Set offsets */
+					// System.out.println("Offset: " + msgoff);
+					concOffset += msgoff;
 					
-					/* Add Offset for Class B */
-					concOffsetClassB += msgoff;
+					if(Entrypoint.stationClass == 'B') {
+						
+						/* Add Offset for Class B */
+						concOffsetClassB += msgoff;
+					}
 				}
+				
+				
 				
 				classAMsg++;
 			}

@@ -83,9 +83,9 @@ public class Message {
 		}
 	}
 	
-	public byte[] getMessageNow(int slot) {
+	public byte[] getMessageNow(int slot, long time) {
 		if(msgValid) {
-			byte[] timeb = longToByteArray(System.currentTimeMillis());
+			byte[] timeb = longToByteArray(time);
 			System.arraycopy(timeb, 0, rawMsg, 26, 8);
 			rawMsg[25] = (byte)slot;
 			

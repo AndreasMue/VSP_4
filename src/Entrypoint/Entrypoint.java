@@ -85,6 +85,7 @@ public class Entrypoint {
 		System.out.println("########################");
 		
 		StationController stCtr = new StationController();
+		stCtr.setOffset(offset);
 		stCtr.start();
 		
 		
